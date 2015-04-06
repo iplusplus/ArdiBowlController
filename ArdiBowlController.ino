@@ -25,6 +25,7 @@
 #include <Bounce2.h>
 #include <Trigger.h>
 
+
 // set pin numbers:
 const int START_BTN = 7;   // the number of the start button.
 const int STOP_BTN = 6;  // the number of the stop button.
@@ -64,8 +65,8 @@ Trigger startTrig = Trigger();
 Trigger modeTrig = Trigger();
 
 // counter and elapsed time for zigzagging
-unsigned long elapsedTime;
-const long zigzagTime = 2000; // zigzag time.
+unsigned long startTime;
+const long ZIGZAG_TIME = 2000; // zigzag time.
 int zigzagCtr;
 int motorSetpoint; // use this for the zigzag testing.
 int analIn;
@@ -101,20 +102,19 @@ void loop() {
 	modeBtn.update();
 	stopBtnState = stopBtn.read();
 	// get the bool states for the triggers.
-	//invert because using pullups
 	startTrig.update(startBtn.read());
 	modeTrig.update(modeBtn.read());
 
-	//always read the stop button.
+	//always read the stop button and set to SETUP if pressed.
 	if (!stopBtnState)
 		state = SETUP;
 
 	switch (state) {
 	case SETUP:
 		// make sure the output is always set low
-		// SET OUTPUT TO ZERO.
-		//analogWrite(MOTOR_OUTPUT, 0);
+		analogWrite(MOTOR_OUTPUT, 0);
 
+		//handle mode changing
 		if (modeTrig.Falling)
 		{
 			// change the modestate
@@ -127,14 +127,14 @@ void loop() {
 		comment(String(modeState));
 		// keep the zigzagCtr clamped and ready.
 		zigzagCtr = 0;
-		elapsedTime = 0;
+		startTime = 0;
 		// slightlty counter intuitively, stopBtn is normally true (pullup resistor)
 		if (startTrig.Falling & stopBtn.read())
 			state = modeState;
 
 		analIn = analogRead(VELO_ANAL);   // read the input pin
 		motorSetpoint = analIn; // keep the motor setpoint.
-		analogWrite(MOTOR_OUTPUT, analIn / 4);
+		//analogWrite(MOTOR_OUTPUT, analIn / 4);
 
 		break;
 
@@ -170,6 +170,7 @@ void loop() {
 	}
 }
 
+//set the lamp states based upon the mode
 void setStateLamp(int modeState)
 {
 	switch (modeState) {
@@ -206,6 +207,7 @@ void setStateLamp(int modeState)
 	}
 }
 
+// wraps the Serial.prinrln for extrra laziness
 void comment(String comment)
 {
 	Serial.println(comment);
@@ -213,51 +215,50 @@ void comment(String comment)
 
 void zigzagMethod(int numberOfZigs)
 {
-
-	if (numberOfZigs = 99) // special case for infinite zigzag
-	{
+	if (numberOfZigs = 99)				// special case for infinite zigzag
 		zigger(numberOfZigs);
-	}
-	else if (zigzagCtr < numberOfZigs) // if it needs to do the zigzag motion
-	{
-		// if elapsed time hasn't been used this run
-		if (elapsedTime = 0)
-			elapsedTime = millis();
-		// check to see if it's time to 'zig'.
-		zigger(numberOfZigs);
-
-	}
-	else if (zigzagCtr = numberOfZigs)// should get here after the zigzags finish.
+	else if (zigzagCtr < numberOfZigs)	// if it needs to do the zigzag motion
+		zigger(numberOfZigs); 
+	else if (zigzagCtr = numberOfZigs)	// should get here after the zigzags finish.
 		comment("Done all my zigzags");
-
-	else // if not a recognised value, go to setup state.
+	else								// if not a recognised value, go to setup state.
 		state = SETUP;
 
 	comment("Number of zigs: " + String(zigzagCtr));
-
 }
 
+// handles timing each zigzag, incrementing the counter and changing motor direction.
 void zigger(int numberOfZigs)
 {
-	long zzt;
-	//first zigzag, only do half the time.
+	long zzt; // temp var for holding correct time
+	
+	// if elapsed time hasn't been used this run, get it.
+	if (startTime = 0)
+		startTime = millis();
+
+	//first zigzag, only do half the time (as not so much distance to go).
 	if (zigzagCtr = 0)
 	{
-		zzt = zigzagTime / 2;
+		zzt = ZIGZAG_TIME / 2;
 		analogWrite(MOTOR_OUTPUT, motorSetpoint);
 	}
 	else
-		zzt = zigzagTime;
+		zzt = ZIGZAG_TIME;
 
 	//after the zigzag timer has elapsed, reverse and increment the counter.
-	if (millis() - elapsedTime > zigzagTime)
+	if (millis() - startTime > ZIGZAG_TIME)
 	{
-		if (numberOfZigs != 99)
-			zigzagCtr++;
-		
+		//when completed, increment zigzagCtr.
+		zigzagCtr++;
+		// change output direction.
 		motorSetpoint = 255 - motorSetpoint;
 		analogWrite(MOTOR_OUTPUT, motorSetpoint);
-		elapsedTime = 0;
-		//TODO - change output direction
+		//reset elapsed time for next zigzag.
+		startTime = 0;
 	}
+
+	// if infinite zigzags, keep zigzag ctr at 1.
+	if (numberOfZigs == 99 && zigzagCtr > 1)
+		zigzagCtr = 1;
+
 }
