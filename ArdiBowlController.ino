@@ -139,10 +139,9 @@ void loop() {
 			state = modeState;
 
 		analIn = analogRead(VELO_ANAL);   // read the input pin
-		comment("analIn : " + String(analIn));
+		//comment("analIn : " + String(analIn));
 		motorSetpoint = analIn / 4; // keep the motor setpoint.
-		//analogWrite(MOTOR_OUTPUT, analIn / 4);
-		comment("motorSetpoint : " + String(motorSetpoint));
+		//comment("motorSetpoint : " + String(motorSetpoint));
 		break;
 
 	case TRAPEZOIDAL:
@@ -151,29 +150,29 @@ void loop() {
 		if (firstTrap)
 		{
 			analogWrite(MOTOR_OUTPUT, motorSetpoint);
-			comment(String(motorSetpoint));
+			//comment(String(motorSetpoint));
 		}
 			
 
 		break;
 
 	case ZZ_1:
-		comment("ZZ_1");
+		//comment("ZZ_1");
 		zigzagMethod(3);
 		break;
 
 	case ZZ_2:
-		comment("ZZ_2");
+		//comment("ZZ_2");
 		zigzagMethod(6);
 		break;
 
 	case ZZ_3:
-		comment("ZZ_3");
+		//comment("ZZ_3");
 		zigzagMethod(9);
 		break;
 
 	case ZZ_INF:
-		comment("ZZ_INF");
+		//comment("ZZ_INF");
 		zigzagMethod(99);
 		break;
 
@@ -264,7 +263,7 @@ void zigger(int numberOfZigs)
 	else
 		zzt = ZIGZAG_TIME;
 
-	comment("ZZ Time: " + String(zzt));
+	//comment("ZZ Time: " + String(zzt));
 	//after the zigzag timer has elapsed, reverse and increment the counter.
 	if (currTime - startTime > zzt)
 	{
