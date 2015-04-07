@@ -92,7 +92,7 @@ void setup() {
 	pinMode(ZZ_3_LED, OUTPUT);
 	pinMode(MOTOR_OUTPUT, OUTPUT);
 	//start the serial for the comment functuion to work.
-	Serial.begin(9600);
+	Serial.begin(115200);
 }
 
 void loop() {
@@ -215,29 +215,33 @@ void comment(String comment)
 
 void zigzagMethod(int numberOfZigs)
 {
-	if (numberOfZigs = 99)				// special case for infinite zigzag
+	if (numberOfZigs == 99)				// special case for infinite zigzag
 		zigger(numberOfZigs);
 	else if (zigzagCtr < numberOfZigs)	// if it needs to do the zigzag motion
 		zigger(numberOfZigs); 
-	else if (zigzagCtr = numberOfZigs)	// should get here after the zigzags finish.
+	else if (zigzagCtr == numberOfZigs)	// should get here after the zigzags finish.
 		comment("Done all my zigzags");
 	else								// if not a recognised value, go to setup state.
 		state = SETUP;
 
-	comment("Number of zigs: " + String(zigzagCtr));
 }
 
 // handles timing each zigzag, incrementing the counter and changing motor direction.
 void zigger(int numberOfZigs)
 {
-	long zzt; // temp var for holding correct time
+	/*comment("Max zigs: " + String(numberOfZigs));
+	comment("Number of zigs: " + String(zigzagCtr));
+	comment("Start time: " + String(startTime));*/
 	
+	unsigned long currTime = millis();
+	long zzt; // temp var for holding correct time
+	comment("elapsed time: " + String(currTime - startTime));
 	// if elapsed time hasn't been used this run, get it.
-	if (startTime = 0)
-		startTime = millis();
+	if (startTime == 0)
+		startTime = currTime;
 
 	//first zigzag, only do half the time (as not so much distance to go).
-	if (zigzagCtr = 0)
+	if (zigzagCtr == 0)
 	{
 		zzt = ZIGZAG_TIME / 2;
 		analogWrite(MOTOR_OUTPUT, motorSetpoint);
@@ -245,8 +249,9 @@ void zigger(int numberOfZigs)
 	else
 		zzt = ZIGZAG_TIME;
 
+	comment("ZZ Time: " + String(zzt));
 	//after the zigzag timer has elapsed, reverse and increment the counter.
-	if (millis() - startTime > ZIGZAG_TIME)
+	if (currTime - startTime > zzt)
 	{
 		//when completed, increment zigzagCtr.
 		zigzagCtr++;
