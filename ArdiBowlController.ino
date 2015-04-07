@@ -40,15 +40,18 @@ const int MOTOR_OUTPUT = 9;  // PWM pin for output to motor
 const int VELO_ANAL = A5;    // the velocity input pin.
 
 // define state numbers
-const int SETUP = 0;
-const int TRAPEZOIDAL = 100;
-const int ZZ_1 = 200;
-const int ZZ_2 = 300;
-const int ZZ_3 = 400;
-const int ZZ_INF = 500;
+#define SETUP 0
+#define TRAPEZOIDAL 100
+#define ZZ_1 200
+#define ZZ_2 300
+#define ZZ_3 400
+#define ZZ_INF 500
+
+// define the zigzagtime
+#define ZIGZAG_TIME 2000 // zigzag time.
 
 // define the debounce time.
-const int DEBOUNCE = 25;
+#define DEBOUNCE 25
 
 // Instantiate a Bounce object
 Bounce startBtn = Bounce();
@@ -66,10 +69,11 @@ Trigger modeTrig = Trigger();
 
 // counter and elapsed time for zigzagging
 unsigned long startTime;
-const long ZIGZAG_TIME = 2000; // zigzag time.
+
 int zigzagCtr;
-int motorSetpoint; // use this for the zigzag testing.
-int analIn;
+int motorSetpoint;	// use this for the zigzag testing.
+int analIn;			// grab the analogue pot.
+boolean firstTrap;  // use this flag to indicate whether the trap is called or not.
 
 
 void setup() {
@@ -113,7 +117,7 @@ void loop() {
 	case SETUP:
 		// make sure the output is always set low
 		analogWrite(MOTOR_OUTPUT, 0);
-
+		
 		//handle mode changing
 		if (modeTrig.Falling)
 		{
@@ -128,18 +132,29 @@ void loop() {
 		// keep the zigzagCtr clamped and ready.
 		zigzagCtr = 0;
 		startTime = 0;
+		firstTrap = true; // setup the trapezoidal move ready.
+
 		// slightlty counter intuitively, stopBtn is normally true (pullup resistor)
 		if (startTrig.Falling & stopBtn.read())
 			state = modeState;
 
 		analIn = analogRead(VELO_ANAL);   // read the input pin
-		motorSetpoint = analIn; // keep the motor setpoint.
+		comment("analIn : " + String(analIn));
+		motorSetpoint = analIn / 4; // keep the motor setpoint.
 		//analogWrite(MOTOR_OUTPUT, analIn / 4);
-
+		comment("motorSetpoint : " + String(motorSetpoint));
 		break;
 
 	case TRAPEZOIDAL:
 		comment("Trapezoidal");
+		// just write the output to the motor output.
+		if (firstTrap)
+		{
+			analogWrite(MOTOR_OUTPUT, motorSetpoint);
+			comment(String(motorSetpoint));
+		}
+			
+
 		break;
 
 	case ZZ_1:
