@@ -47,11 +47,12 @@ const int VELO_ANAL = A1;    // I0.8 the velocity input pin.
 const int TIME_ANAL = A0;    // I0.9 the velocity input pin.
 
 // set motor output pin number.
+const int ANAL_10V_REF = 11;	// Q0.1 just set to max to provide 10V refernce voltage.
 const int MOTOR_OUTPUT = 13;	// Q0.0 PWM pin for output to motor
 
 // set drive start and direction pins.
-const int MOTOR_RUN = 0;		// Q0.9 motor runnnig
-const int MOTOR_DIRECTION = 1;	// Q0.8 motor direction.
+const int MOTOR_RUN = 3;		// Q0.6 (SET 10VDC) motor runnnig
+const int MOTOR_DIRECTION = 5;	// Q0.5 (SET 10VDC) motor direction.
 
 // define state numbers
 #define SETUP 0
@@ -60,6 +61,10 @@ const int MOTOR_DIRECTION = 1;	// Q0.8 motor direction.
 #define ZZ_2 300
 #define ZZ_3 400
 #define ZZ_INF 500
+#define ZZ_1_NUM 3 // number of zigzagz, ZZ_1
+#define ZZ_2_NUM 6 // number of zigzagz, ZZ_2
+#define ZZ_3_NUM 9 // number of zigzagz, ZZ_3
+#define ZZ_INF_NUM 99 //DON'T CHANGE!
 
 // define the zigzagtime
 #define ZIGZAG_TIME 2000 // zigzag time.
@@ -113,6 +118,7 @@ void setup() {
 	pinMode(MOTOR_OUTPUT, OUTPUT);
 	pinMode(MOTOR_DIRECTION, OUTPUT);
 	pinMode(MOTOR_RUN, OUTPUT);
+	pinMode(ANAL_10V_REF, OUTPUT);
 	//start the serial for the comment functuion to work.
 	Serial.begin(115200);
 }
@@ -135,8 +141,15 @@ void loop() {
 	case SETUP:
 		// make sure the output is always set low, and not running.
 		analogWrite(MOTOR_OUTPUT, 0);
+		analogWrite(ANAL_10V_REF, 255);
 		digitalWrite(MOTOR_RUN, LOW);
-		motorDir = false; //make sure the initial directionis repeatable.
+		// reset motor direction in setup state if necessary
+		if (motorDir)
+		{
+			motorDir = false; //make sure the initial directionis repeatable.
+			digitalWrite(MOTOR_RUN, LOW);
+		}
+		
 		
 		//handle mode changing
 		if (modeTrig.Falling)
@@ -148,7 +161,7 @@ void loop() {
 				modeState = 100;
 		}
 		//setStateLamp(modeState);
-		comment(String(modeState));
+		//comment(String(modeState));
 		// keep the zigzagCtr clamped and ready.
 		zigzagCtr = 0;
 		startTime = 0;
@@ -157,12 +170,18 @@ void loop() {
 		// slightlty counter intuitively, stopBtn is normally true (pullup resistor)
 		if (startTrig.Falling & stopBtn.read())
 			state = modeState;
+		
+		// read the velocity input and map to percentage 0 - 139.5% (139.5% is max motor)
+		spdIn = map(analogRead(VELO_ANAL),0,1023,0,122*1.395);	
 
-		spdIn = analogRead(VELO_ANAL);		// read the velocity input
-		timeIn = map(analogRead(TIME_ANAL) / 4, 0, 255, 500, 3000);		// read the time input
-		//comment("spdIn : " + String(spdIn));
-		motorSetpoint = spdIn / 8; // keep the motor setpoint, maximum of 100%.
+		// read the time and map to 500ms to 3000ms
+		timeIn = map(analogRead(TIME_ANAL), 0, 1023, 250, 1500);		// read the time input
+
+		// motor setpoint.  as spdIn.
+		motorSetpoint = spdIn; // spdIn (as %) * single percent output.
+		comment("spdIN : " + String(spdIn));
 		comment("motorSetpoint : " + String(motorSetpoint));
+		//comment("time : " + String(timeIn));
 		break;
 
 	case TRAPEZOIDAL:
@@ -177,22 +196,22 @@ void loop() {
 
 	case ZZ_1:
 		//comment("ZZ_1");
-		zigzagMethod(3);
+		zigzagMethod(ZZ_1_NUM);
 		break;
 
 	case ZZ_2:
 		//comment("ZZ_2");
-		zigzagMethod(6);
+		zigzagMethod(ZZ_2_NUM);
 		break;
 
 	case ZZ_3:
 		//comment("ZZ_3");
-		zigzagMethod(9);
+		zigzagMethod(ZZ_3_NUM);
 		break;
 
 	case ZZ_INF:
 		//comment("ZZ_INF");
-		zigzagMethod(99);
+		zigzagMethod(ZZ_INF_NUM);
 		break;
 
 	default:
@@ -248,7 +267,7 @@ void comment(String comment)
 
 void zigzagMethod(int numberOfZigs)
 {
-	if (numberOfZigs == 99)				// special case for infinite zigzag
+	if (numberOfZigs == ZZ_INF_NUM)				// special case for infinite zigzag
 		zigger(numberOfZigs);
 	else if (zigzagCtr < numberOfZigs)	// if it needs to do the zigzag motion
 		zigger(numberOfZigs); 
@@ -299,7 +318,7 @@ void zigger(int numberOfZigs)
 	}
 
 	// if infinite zigzags, keep zigzag ctr at 1.
-	if (numberOfZigs == 99 && zigzagCtr > 1)
+	if (numberOfZigs == ZZ_INF_NUM && zigzagCtr > 1)
 		zigzagCtr = 1;
 
 }
