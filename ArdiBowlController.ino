@@ -26,18 +26,32 @@
 #include <Trigger.h>
 
 
-// set pin numbers:
-const int START_BTN = 7;   // the number of the start button.
-const int STOP_BTN = 6;  // the number of the stop button.
-const int MODE_BTN = 5;    // the number of the mode button.
 
+
+/*
+NOT NEEDED FOR INDUSTRIAL SHIELDS
 const int TRAP_LED = 13;     // the number of the trapezoidal LED pin
 const int ZZ_1_LED = 12;     // the number of the zz_1 LED pin
 const int ZZ_2_LED = 11;     // the number of the zz_2 LED pin
 const int ZZ_3_LED = 10;     // the number of the zz_3 LED pin
-const int MOTOR_OUTPUT = 9;  // PWM pin for output to motor
 
-const int VELO_ANAL = A5;    // the velocity input pin.
+*/
+
+// set digital input pin numbers:
+const int START_BTN = 4;	// I0.3 the number of the start button.
+const int STOP_BTN = 8;		// I0.2  the number of the stop button.
+const int MODE_BTN = 12;	// I0.1 the number of the mode button.
+
+//set analogue input pins.
+const int VELO_ANAL = A1;    // I0.8 the velocity input pin.
+const int TIME_ANAL = A0;    // I0.9 the velocity input pin.
+
+// set motor output pin number.
+const int MOTOR_OUTPUT = 13;	// Q0.0 PWM pin for output to motor
+
+// set drive start and direction pins.
+const int MOTOR_RUN = 0;		// Q0.9 motor runnnig
+const int MOTOR_DIRECTION = 1;	// Q0.8 motor direction.
 
 // define state numbers
 #define SETUP 0
@@ -72,29 +86,33 @@ unsigned long startTime;
 
 int zigzagCtr;
 int motorSetpoint;	// use this for the zigzag testing.
-int analIn;			// grab the analogue pot.
+int spdIn;			// grab the speed pot.
+int timeIn;			// grab the time pot.
+boolean motorDir;   // motor direction.
 boolean firstTrap;  // use this flag to indicate whether the trap is called or not.
 
 
 void setup() {
 	// setup up buttons an debounce them
-	pinMode(START_BTN, INPUT_PULLUP);
+	pinMode(START_BTN, INPUT);
 	startBtn.attach(START_BTN);
 	startBtn.interval(DEBOUNCE);       // interval in ms
 
-	pinMode(MODE_BTN, INPUT_PULLUP);
+	pinMode(MODE_BTN, INPUT);
 	modeBtn.attach(MODE_BTN);
 	modeBtn.interval(DEBOUNCE);       // interval in ms
 
-	pinMode(STOP_BTN, INPUT_PULLUP);
+	pinMode(STOP_BTN, INPUT);
 	stopBtn.attach(STOP_BTN);
 	stopBtn.interval(DEBOUNCE);       // interval in ms
 
-	pinMode(TRAP_LED, OUTPUT);
-	pinMode(ZZ_1_LED, OUTPUT);
-	pinMode(ZZ_2_LED, OUTPUT);
-	pinMode(ZZ_3_LED, OUTPUT);
+	//pinMode(TRAP_LED, OUTPUT);
+	//pinMode(ZZ_1_LED, OUTPUT);
+	//pinMode(ZZ_2_LED, OUTPUT);
+	//pinMode(ZZ_3_LED, OUTPUT);
 	pinMode(MOTOR_OUTPUT, OUTPUT);
+	pinMode(MOTOR_DIRECTION, OUTPUT);
+	pinMode(MOTOR_RUN, OUTPUT);
 	//start the serial for the comment functuion to work.
 	Serial.begin(115200);
 }
@@ -115,8 +133,10 @@ void loop() {
 
 	switch (state) {
 	case SETUP:
-		// make sure the output is always set low
+		// make sure the output is always set low, and not running.
 		analogWrite(MOTOR_OUTPUT, 0);
+		digitalWrite(MOTOR_RUN, LOW);
+		motorDir = false; //make sure the initial directionis repeatable.
 		
 		//handle mode changing
 		if (modeTrig.Falling)
@@ -127,7 +147,7 @@ void loop() {
 			else
 				modeState = 100;
 		}
-		setStateLamp(modeState);
+		//setStateLamp(modeState);
 		comment(String(modeState));
 		// keep the zigzagCtr clamped and ready.
 		zigzagCtr = 0;
@@ -138,10 +158,11 @@ void loop() {
 		if (startTrig.Falling & stopBtn.read())
 			state = modeState;
 
-		analIn = analogRead(VELO_ANAL);   // read the input pin
-		//comment("analIn : " + String(analIn));
-		motorSetpoint = analIn / 4; // keep the motor setpoint.
-		//comment("motorSetpoint : " + String(motorSetpoint));
+		spdIn = analogRead(VELO_ANAL);		// read the velocity input
+		timeIn = map(analogRead(TIME_ANAL) / 4, 0, 255, 500, 3000);		// read the time input
+		//comment("spdIn : " + String(spdIn));
+		motorSetpoint = spdIn / 8; // keep the motor setpoint, maximum of 100%.
+		comment("motorSetpoint : " + String(motorSetpoint));
 		break;
 
 	case TRAPEZOIDAL:
@@ -149,11 +170,9 @@ void loop() {
 		// just write the output to the motor output.
 		if (firstTrap)
 		{
-			analogWrite(MOTOR_OUTPUT, motorSetpoint);
+			startMotor(motorSetpoint, false);
 			//comment(String(motorSetpoint));
 		}
-			
-
 		break;
 
 	case ZZ_1:
@@ -185,41 +204,41 @@ void loop() {
 }
 
 //set the lamp states based upon the mode
-void setStateLamp(int modeState)
-{
-	switch (modeState) {
-	case TRAPEZOIDAL:
-		digitalWrite(TRAP_LED, HIGH);
-		digitalWrite(ZZ_1_LED, LOW);
-		digitalWrite(ZZ_2_LED, LOW);
-		digitalWrite(ZZ_3_LED, LOW);
-		break;
-	case ZZ_1:
-		digitalWrite(TRAP_LED, LOW);
-		digitalWrite(ZZ_1_LED, HIGH);
-		digitalWrite(ZZ_2_LED, LOW);
-		digitalWrite(ZZ_3_LED, LOW);
-		break;
-	case ZZ_2:
-		digitalWrite(TRAP_LED, LOW);
-		digitalWrite(ZZ_1_LED, LOW);
-		digitalWrite(ZZ_2_LED, HIGH);
-		digitalWrite(ZZ_3_LED, LOW);
-		break;
-	case ZZ_3:
-		digitalWrite(TRAP_LED, LOW);
-		digitalWrite(ZZ_1_LED, LOW);
-		digitalWrite(ZZ_2_LED, LOW);
-		digitalWrite(ZZ_3_LED, HIGH);
-		break;
-	case ZZ_INF:
-		digitalWrite(TRAP_LED, LOW);
-		digitalWrite(ZZ_1_LED, HIGH);
-		digitalWrite(ZZ_2_LED, HIGH);
-		digitalWrite(ZZ_3_LED, HIGH);
-		break;
-	}
-}
+//void //setStateLamp(int modeState)
+//{
+//	switch (modeState) {
+//	case TRAPEZOIDAL:
+//		digitalWrite(TRAP_LED, HIGH);
+//		digitalWrite(ZZ_1_LED, LOW);
+//		digitalWrite(ZZ_2_LED, LOW);
+//		digitalWrite(ZZ_3_LED, LOW);
+//		break;
+//	case ZZ_1:
+//		digitalWrite(TRAP_LED, LOW);
+//		digitalWrite(ZZ_1_LED, HIGH);
+//		digitalWrite(ZZ_2_LED, LOW);
+//		digitalWrite(ZZ_3_LED, LOW);
+//		break;
+//	case ZZ_2:
+//		digitalWrite(TRAP_LED, LOW);
+//		digitalWrite(ZZ_1_LED, LOW);
+//		digitalWrite(ZZ_2_LED, HIGH);
+//		digitalWrite(ZZ_3_LED, LOW);
+//		break;
+//	case ZZ_3:
+//		digitalWrite(TRAP_LED, LOW);
+//		digitalWrite(ZZ_1_LED, LOW);
+//		digitalWrite(ZZ_2_LED, LOW);
+//		digitalWrite(ZZ_3_LED, HIGH);
+//		break;
+//	case ZZ_INF:
+//		digitalWrite(TRAP_LED, LOW);
+//		digitalWrite(ZZ_1_LED, HIGH);
+//		digitalWrite(ZZ_2_LED, HIGH);
+//		digitalWrite(ZZ_3_LED, HIGH);
+//		break;
+//	}
+//}
 
 // wraps the Serial.prinrln for extrra laziness
 void comment(String comment)
@@ -235,6 +254,7 @@ void zigzagMethod(int numberOfZigs)
 		zigger(numberOfZigs); 
 	else if (zigzagCtr == numberOfZigs)	// should get here after the zigzags finish.
 		comment("Done all my zigzags");
+		// stop and return to 
 	else								// if not a recognised value, go to setup state.
 		state = SETUP;
 
@@ -243,13 +263,10 @@ void zigzagMethod(int numberOfZigs)
 // handles timing each zigzag, incrementing the counter and changing motor direction.
 void zigger(int numberOfZigs)
 {
-	/*comment("Max zigs: " + String(numberOfZigs));
-	comment("Number of zigs: " + String(zigzagCtr));
-	comment("Start time: " + String(startTime));*/
-	
-	unsigned long currTime = millis();
-	long zzt; // temp var for holding correct time
-	comment("elapsed time: " + String(currTime - startTime));
+	unsigned long currTime = millis();	// get current time
+	long zzt;							// temp var for holding correct time
+	//comment("elapsed time: " + String(currTime - startTime));
+
 	// if elapsed time hasn't been used this run, get it.
 	if (startTime == 0)
 		startTime = currTime;
@@ -257,11 +274,11 @@ void zigger(int numberOfZigs)
 	//first zigzag, only do half the time (as not so much distance to go).
 	if (zigzagCtr == 0)
 	{
-		zzt = ZIGZAG_TIME / 2;
-		analogWrite(MOTOR_OUTPUT, motorSetpoint);
+		zzt = timeIn / 2;
+		startMotor(motorSetpoint, false);
 	}
 	else
-		zzt = ZIGZAG_TIME;
+		zzt = timeIn;
 
 	//comment("ZZ Time: " + String(zzt));
 	//after the zigzag timer has elapsed, reverse and increment the counter.
@@ -270,8 +287,13 @@ void zigger(int numberOfZigs)
 		//when completed, increment zigzagCtr.
 		zigzagCtr++;
 		// change output direction.
-		motorSetpoint = 255 - motorSetpoint;
-		analogWrite(MOTOR_OUTPUT, motorSetpoint);
+		motorDir = !motorDir;
+		digitalWrite(MOTOR_DIRECTION, motorDir);
+		if (motorDir)
+			comment("MOTOR DIRECTION: TRUE");
+		else
+			comment("MOTOR DIRECTION: FALSE");
+		//analogWrite(MOTOR_OUTPUT, motorSetpoint);
 		//reset elapsed time for next zigzag.
 		startTime = 0;
 	}
@@ -280,4 +302,17 @@ void zigger(int numberOfZigs)
 	if (numberOfZigs == 99 && zigzagCtr > 1)
 		zigzagCtr = 1;
 
+}
+
+void startMotor(int motorSetpoint, boolean direction)
+{
+	//set output speed and start the motor in the right direction.
+	analogWrite(MOTOR_OUTPUT, motorSetpoint);
+	if (direction)
+		digitalWrite(MOTOR_DIRECTION, HIGH);
+	else
+		digitalWrite(MOTOR_DIRECTION, LOW);
+
+	//start the motor.
+	digitalWrite(MOTOR_RUN, HIGH);
 }
