@@ -25,9 +25,6 @@
 #include <Bounce2.h>
 #include <Trigger.h>
 
-
-
-
 /*
 NOT NEEDED FOR INDUSTRIAL SHIELDS
 const int TRAP_LED = 13;     // the number of the trapezoidal LED pin
@@ -38,9 +35,11 @@ const int ZZ_3_LED = 10;     // the number of the zz_3 LED pin
 */
 
 // set digital input pin numbers:
+const int DRV_FAULT = A5;	// I0.4 drv fault relay feedback
 const int START_BTN = 4;	// I0.3 the number of the start button.
 const int STOP_BTN = 8;		// I0.2  the number of the stop button.
 const int MODE_BTN = 12;	// I0.1 the number of the mode button.
+
 
 //set analogue input pins.
 const int VELO_ANAL = A1;    // I0.8 the velocity input pin.
@@ -51,8 +50,8 @@ const int ANAL_10V_REF = 11;	// Q0.1 just set to max to provide 10V refernce vol
 const int MOTOR_OUTPUT = 13;	// Q0.0 PWM pin for output to motor
 
 // set drive start and direction pins.
-const int MOTOR_RUN = 3;		// Q0.6 (SET 10VDC) motor runnnig
-const int MOTOR_DIRECTION = 5;	// Q0.5 (SET 10VDC) motor direction.
+const int MOTOR_RUN = 3;		// Q0.6  motor runnnig
+const int MOTOR_DIRECTION = 5;	// Q0.5 motor direction.
 
 // define state numbers
 #define SETUP 0
@@ -78,6 +77,7 @@ Bounce stopBtn = Bounce();
 Bounce modeBtn = Bounce();
 
 boolean stopBtnState = false;
+boolean drvFaultState = false;
 
 // Variables will change:
 int modeState = 100;        // the current state of the output
@@ -111,10 +111,6 @@ void setup() {
 	stopBtn.attach(STOP_BTN);
 	stopBtn.interval(DEBOUNCE);       // interval in ms
 
-	//pinMode(TRAP_LED, OUTPUT);
-	//pinMode(ZZ_1_LED, OUTPUT);
-	//pinMode(ZZ_2_LED, OUTPUT);
-	//pinMode(ZZ_3_LED, OUTPUT);
 	pinMode(MOTOR_OUTPUT, OUTPUT);
 	pinMode(MOTOR_DIRECTION, OUTPUT);
 	pinMode(MOTOR_RUN, OUTPUT);
@@ -128,13 +124,29 @@ void loop() {
 	startBtn.update();
 	stopBtn.update();
 	modeBtn.update();
+
 	stopBtnState = stopBtn.read();
+
+	// if the Drive fault signal is 5Vdc (read into analogue port) then true
+	drvFaultState = (analogRead(DRV_FAULT) > 240);
+
+	if (drvFaultState)
+		comment("DrvFaultState is true");
+	else
+		comment("drvFaultState is fault");
+
 	// get the bool states for the triggers.
 	startTrig.update(startBtn.read());
 	modeTrig.update(modeBtn.read());
 
-	//always read the stop button and set to SETUP if pressed.
-	if (!stopBtnState)
+	// read the velocity input and map to percentage 0 - 139.5% (139.5% is max motor)
+	spdIn = map(analogRead(VELO_ANAL), 0, 1023, 0, 122 * 1.395);
+
+	// motor setpoint.  as spdIn.
+	motorSetpoint = spdIn; // spdIn (as %) * single percent output.
+
+	//always read the stop button and and set to SETUP if pressed.
+	if (!stopBtnState || !drvFaultState)
 		state = SETUP;
 
 	switch (state) {
@@ -172,15 +184,17 @@ void loop() {
 			state = modeState;
 		
 		// read the velocity input and map to percentage 0 - 139.5% (139.5% is max motor)
-		spdIn = map(analogRead(VELO_ANAL),0,1023,0,122*1.395);	
+		//spdIn = map(analogRead(VELO_ANAL),0,1023,0,122*1.395);	
+
+		comment("bowl velocity is " + String(spdIn));
 
 		// read the time and map to 500ms to 3000ms
 		timeIn = map(analogRead(TIME_ANAL), 0, 1023, 250, 1500);		// read the time input
 
 		// motor setpoint.  as spdIn.
-		motorSetpoint = spdIn; // spdIn (as %) * single percent output.
-		comment("spdIN : " + String(spdIn));
-		comment("motorSetpoint : " + String(motorSetpoint));
+		//motorSetpoint = spdIn; // spdIn (as %) * single percent output.
+		//comment("spdIN : " + String(spdIn));
+		//comment("motorSetpoint : " + String(motorSetpoint));
 		//comment("time : " + String(timeIn));
 		break;
 
@@ -192,26 +206,39 @@ void loop() {
 			startMotor(motorSetpoint, false);
 			//comment(String(motorSetpoint));
 		}
+		updatMotorSpd(motorSetpoint);
 		break;
 
 	case ZZ_1:
 		//comment("ZZ_1");
 		zigzagMethod(ZZ_1_NUM);
+		updatMotorSpd(motorSetpoint);
+		if (startTrig.Falling)
+			state = TRAPEZOIDAL;
 		break;
 
 	case ZZ_2:
 		//comment("ZZ_2");
 		zigzagMethod(ZZ_2_NUM);
+		updatMotorSpd(motorSetpoint);
+		if (startTrig.Falling)
+			state = TRAPEZOIDAL;
 		break;
 
 	case ZZ_3:
 		//comment("ZZ_3");
 		zigzagMethod(ZZ_3_NUM);
+		updatMotorSpd(motorSetpoint);
+		if (startTrig.Falling)
+			state = TRAPEZOIDAL;
 		break;
 
 	case ZZ_INF:
 		//comment("ZZ_INF");
 		zigzagMethod(ZZ_INF_NUM);
+		updatMotorSpd(motorSetpoint);
+		if (startTrig.Falling)
+			state = TRAPEZOIDAL;
 		break;
 
 	default:
@@ -334,4 +361,11 @@ void startMotor(int motorSetpoint, boolean direction)
 
 	//start the motor.
 	digitalWrite(MOTOR_RUN, HIGH);
+}
+
+void updatMotorSpd(int motorSetPoint)
+{
+	//set output speed
+	analogWrite(MOTOR_OUTPUT, motorSetpoint);
+
 }
