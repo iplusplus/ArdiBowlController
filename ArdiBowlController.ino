@@ -21,7 +21,7 @@
 
 /*
 	TODO: Get the zigger working properly.
-*/
+	*/
 #include <Bounce2.h>
 #include <Trigger.h>
 
@@ -40,17 +40,21 @@ const int START_BTN = 4;	// I0.3 the number of the start button.
 const int STOP_BTN = 8;		// I0.2  the number of the stop button.
 const int MODE_BTN = 12;	// I0.1 the number of the mode button.
 
+// define xFader deadband range as percentage 
+#define xFADER_DEAD_START 50
+#define xFADER_DEAD_END 200
 
 //set analogue input pins.
-const int VELO_ANAL = A1;    // I0.8 the velocity input pin.
-const int TIME_ANAL = A0;    // I0.9 the velocity input pin.
+const int FADER_ANAL = A2;	// I0.7	the crossfader input pin.
+const int VELO_ANAL = A1;   // I0.8 the velocity input pin.
+const int TIME_ANAL = A0;   // I0.9 the velocity input pin.
 
 // set motor output pin number.
 const int ANAL_10V_REF = 11;	// Q0.1 just set to max to provide 10V refernce voltage.
 const int MOTOR_OUTPUT = 13;	// Q0.0 PWM pin for output to motor
 
 // set drive start and direction pins.
-const int MOTOR_RUN = 3;		// Q0.6  motor runnnig
+const int MOTOR_RUN = 6;		// Q0.4  motor runnnig
 const int MOTOR_DIRECTION = 5;	// Q0.5 motor direction.
 
 // define state numbers
@@ -60,6 +64,7 @@ const int MOTOR_DIRECTION = 5;	// Q0.5 motor direction.
 #define ZZ_2 300
 #define ZZ_3 400
 #define ZZ_INF 500
+#define X_FADER 600
 #define ZZ_1_NUM 3 // number of zigzagz, ZZ_1
 #define ZZ_2_NUM 6 // number of zigzagz, ZZ_2
 #define ZZ_3_NUM 9 // number of zigzagz, ZZ_3
@@ -93,6 +98,9 @@ int zigzagCtr;
 int motorSetpoint;	// use this for the zigzag testing.
 int spdIn;			// grab the speed pot.
 int timeIn;			// grab the time pot.
+int veloAnalIn;		// grab unscaled pot.
+int vel;			// used in X_FADER.
+int faderIn;		// grab the xFader.
 boolean motorDir;   // motor direction.
 boolean firstTrap;  // use this flag to indicate whether the trap is called or not.
 
@@ -130,18 +138,20 @@ void loop() {
 	// if the Drive fault signal is 5Vdc (read into analogue port) then true
 	drvFaultState = (analogRead(DRV_FAULT) > 240);
 
-	if (drvFaultState)
-		comment("DrvFaultState is true");
+	/*if (drvFaultState)
+		comment("DrvFaultState is false");
 	else
-		comment("drvFaultState is fault");
+		comment("drvFaultState is true");*/
 
 	// get the bool states for the triggers.
 	startTrig.update(startBtn.read());
 	modeTrig.update(modeBtn.read());
 
 	// read the velocity input and map to percentage 0 - 139.5% (139.5% is max motor)
-	spdIn = map(analogRead(VELO_ANAL), 0, 1023, 0, 122 * 1.395);
-
+	veloAnalIn = analogRead(VELO_ANAL);
+	faderIn = analogRead(FADER_ANAL);
+	comment("fader IN is : " + String(faderIn));
+	spdIn = map(veloAnalIn, 0, 1023, 0, 122 * 1.395);
 	// motor setpoint.  as spdIn.
 	motorSetpoint = spdIn; // spdIn (as %) * single percent output.
 
@@ -158,16 +168,15 @@ void loop() {
 		// reset motor direction in setup state if necessary
 		if (motorDir)
 		{
-			motorDir = false; //make sure the initial directionis repeatable.
+			motorDir = false; //make sure the initial direction is repeatable.
 			digitalWrite(MOTOR_RUN, LOW);
 		}
-		
-		
+
 		//handle mode changing
 		if (modeTrig.Falling)
 		{
 			// change the modestate
-			if (modeState < 500)
+			if (modeState < ZZ_INF)
 				modeState += 100;
 			else
 				modeState = 100;
@@ -179,27 +188,40 @@ void loop() {
 		startTime = 0;
 		firstTrap = true; // setup the trapezoidal move ready.
 
-		// slightlty counter intuitively, stopBtn is normally true (pullup resistor)
+		// slightlty counter intuitively, stopBtn is normally true 
 		if (startTrig.Falling & stopBtn.read())
 			state = modeState;
-		
+
+		comment("state is: " + String(modeState));
+		//comment("xFader val is" + String(map(faderIn, 0, 1023, 0, 255)));
+
+		//modestate test for X_FADER mode.
+		if (state == X_FADER)
+		{
+			int v = map(faderIn, 0, 1023, 0, 255);
+			comment("velocity in x_fader: " + String(v));
+
+			if (v > xFADER_DEAD_START && v < xFADER_DEAD_END)
+				;
+				//comment("Should start: in deadband");// ensure in deadband to start
+				//
+			else
+				//comment("Don't start, not in deadband");// ensure in deadband to start
+				// hold in setup if not in deadband.
+				state = SETUP;
+		}
+
 		// read the velocity input and map to percentage 0 - 139.5% (139.5% is max motor)
 		//spdIn = map(analogRead(VELO_ANAL),0,1023,0,122*1.395);	
-
 		comment("bowl velocity is " + String(spdIn));
 
 		// read the time and map to 500ms to 3000ms
 		timeIn = map(analogRead(TIME_ANAL), 0, 1023, 250, 1500);		// read the time input
 
-		// motor setpoint.  as spdIn.
-		//motorSetpoint = spdIn; // spdIn (as %) * single percent output.
-		//comment("spdIN : " + String(spdIn));
-		//comment("motorSetpoint : " + String(motorSetpoint));
-		//comment("time : " + String(timeIn));
 		break;
 
 	case TRAPEZOIDAL:
-		comment("Trapezoidal");
+		//comment("Trapezoidal");
 		// just write the output to the motor output.
 		if (firstTrap)
 		{
@@ -241,6 +263,20 @@ void loop() {
 			state = TRAPEZOIDAL;
 		break;
 
+	case X_FADER:
+		// make sure in zero speed before starting
+		vel = map(faderIn, 0, 1023, 0, spdIn);
+		comment("xfader vel: " + String(vel));
+		if (vel < spdIn / 2)
+			startMotor(vel, false);
+		else if (vel > spdIn / 2)
+			startMotor(vel, true);
+
+		if (startTrig.Falling)
+			state = TRAPEZOIDAL;
+
+		break;
+
 	default:
 
 		state = SETUP;
@@ -248,43 +284,6 @@ void loop() {
 		// default is optional
 	}
 }
-
-//set the lamp states based upon the mode
-//void //setStateLamp(int modeState)
-//{
-//	switch (modeState) {
-//	case TRAPEZOIDAL:
-//		digitalWrite(TRAP_LED, HIGH);
-//		digitalWrite(ZZ_1_LED, LOW);
-//		digitalWrite(ZZ_2_LED, LOW);
-//		digitalWrite(ZZ_3_LED, LOW);
-//		break;
-//	case ZZ_1:
-//		digitalWrite(TRAP_LED, LOW);
-//		digitalWrite(ZZ_1_LED, HIGH);
-//		digitalWrite(ZZ_2_LED, LOW);
-//		digitalWrite(ZZ_3_LED, LOW);
-//		break;
-//	case ZZ_2:
-//		digitalWrite(TRAP_LED, LOW);
-//		digitalWrite(ZZ_1_LED, LOW);
-//		digitalWrite(ZZ_2_LED, HIGH);
-//		digitalWrite(ZZ_3_LED, LOW);
-//		break;
-//	case ZZ_3:
-//		digitalWrite(TRAP_LED, LOW);
-//		digitalWrite(ZZ_1_LED, LOW);
-//		digitalWrite(ZZ_2_LED, LOW);
-//		digitalWrite(ZZ_3_LED, HIGH);
-//		break;
-//	case ZZ_INF:
-//		digitalWrite(TRAP_LED, LOW);
-//		digitalWrite(ZZ_1_LED, HIGH);
-//		digitalWrite(ZZ_2_LED, HIGH);
-//		digitalWrite(ZZ_3_LED, HIGH);
-//		break;
-//	}
-//}
 
 // wraps the Serial.prinrln for extrra laziness
 void comment(String comment)
@@ -297,10 +296,10 @@ void zigzagMethod(int numberOfZigs)
 	if (numberOfZigs == ZZ_INF_NUM)				// special case for infinite zigzag
 		zigger(numberOfZigs);
 	else if (zigzagCtr < numberOfZigs)	// if it needs to do the zigzag motion
-		zigger(numberOfZigs); 
+		zigger(numberOfZigs);
 	else if (zigzagCtr == numberOfZigs)	// should get here after the zigzags finish.
 		comment("Done all my zigzags");
-		// stop and return to 
+	// stop and return to 
 	else								// if not a recognised value, go to setup state.
 		state = SETUP;
 
