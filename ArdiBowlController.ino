@@ -19,13 +19,10 @@
  3) if the emergency stop button is pressed, the machine is clamped to zero speed.
  */
 
-/*
-	TODO: Get the zigger working properly.
-	*/
 #include <Bounce2.h>
 #include <Trigger.h>
-//#include <Wire.h>
-//#include <LCD03.h>
+#include <Wire.h>
+#include <LCD03.h>
 
 // ------RIGHT SIDE------
 // RP01 : Not Conected.
@@ -51,6 +48,7 @@ int Q0_3 = 9;     // select the Analog (0-10Vdc) / PWM (10 OR 24Vdc) /Digital (2
 int Q0_2 = 10;    // select the Analog (0-10Vdc) / PWM (10 OR 24Vdc) /Digital (24Vdc)OUTPUT  
 int Q0_1 = 11;    // select the Analog (0-10Vdc) / PWM (10 OR 24Vdc) /Digital (24Vdc)OUTPUT  
 int Q0_0 = 13;    // select the Analog (0-10Vdc) / PWM (10 OR 24Vdc) /Digital (24Vdc)OUTPUT  
+
 // set digital input pin numbers:
 const int DRV_FAULT = I0_4;	// I0.4 drv fault relay feedback
 const int START_BTN = I0_3;	// I0.3 the number of the start button.
@@ -94,6 +92,8 @@ const int MOTOR_DIRECTION = Q0_5;	// Q0.5 motor direction.
 // define the debounce time.
 #define DEBOUNCE 25
 
+#define SCREEN_UPDATE_PERIOD 200 // time in ms between updating screen. avoid too much work!
+
 // Instantiate a Bounce object
 Bounce startBtn = Bounce();
 Bounce stopBtn = Bounce();
@@ -120,10 +120,11 @@ int timeIn;			// grab the time pot.
 int veloAnalIn;		// grab unscaled pot.
 int vel;			// used in X_FADER.
 int faderIn;		// grab the xFader.
+int lastScreenUpdateTime; // hold the current screen time to regulate updates.
 boolean motorDir;   // motor direction.
 boolean firstTrap;  // use this flag to indicate whether the trap is called or not.
 
-//LCD03 lcd; // set up the LCD connection
+LCD03 lcd; // set up the LCD connection
 
 void setup() {
 	// configure digital output pins where necessary
@@ -154,7 +155,7 @@ void setup() {
 	Serial.begin(115200);
 
 	//initialise LCD Screen
-	//LCDSetup();
+	LCDSetup();
 }
 
 void loop() {
@@ -174,17 +175,27 @@ void loop() {
 
 	// read the velocity input and map to percentage 0 - 139.5% (139.5% is max motor)
 	veloAnalIn = analogRead(VELO_ANAL);
-	comment("Velo anal in is: " + String(veloAnalIn));
+	//comment("Velo anal in is: " + String(veloAnalIn));
 	/*
 		scale spdIn from 0 to 139.5%.  127.5 is about half of 255 (so 5V output).
 		5V to the drive is 100% speed (2860rpm). 3989rpm (139.5%) is max speed
 		So 127.5 * 1.395 = 177.8 = max drive speed
-	*/
+		*/
 	spdIn = map(veloAnalIn, 0, 1023, 0, 178);
-	comment("speedIn is " + String(spdIn));
+	//comment("speedIn is " + String(spdIn));
 
 	// read the time and map to 500ms to 3000ms
 	timeIn = map(analogRead(TIME_ANAL), 0, 1023, 250, 1500);		// read the time input
+
+	// update the screen
+	if (updateScreen())
+	{
+		// pass the correct speed based upon the 
+		if (state != X_FADER)
+			lcdSetupMode(state, modeState, spdIn, timeIn, zigzagCtr);
+		else
+			lcdSetupMode(state, 0, vel, 0, 0);
+	}
 
 	//always read the stop button and and set to SETUP if pressed.
 	if (!stopBtnState || !drvFaultState)
@@ -196,6 +207,7 @@ void loop() {
 		analogWrite(MOTOR_OUTPUT, 0);
 		analogWrite(ANAL_10V_REF, 255);
 		digitalWrite(MOTOR_RUN, LOW);
+
 		// reset motor direction in setup state if necessary
 		if (motorDir)
 		{
@@ -222,8 +234,6 @@ void loop() {
 		if (startTrig.Falling & stopBtn.read())
 			state = modeState;
 
-		comment("state is: " + String(modeState));
-
 		//modestate test for X_FADER mode.
 		if (state == X_FADER)
 		{
@@ -243,14 +253,14 @@ void loop() {
 			startMotor(spdIn, false);
 
 		updatMotorSpd(spdIn);
-		comment("bowl velocity is " + String(spdIn));
+		//comment("bowl velocity is " + String(spdIn));
 		break;
 
 	case ZZ_1:
 		// three zig zags
 		zigzagMethod(ZZ_1_NUM);
 		updatMotorSpd(spdIn);
-		comment("bowl velocity is " + String(spdIn));
+		//comment("bowl velocity is " + String(spdIn));
 		if (startTrig.Falling)
 			state = TRAPEZOIDAL;
 
@@ -291,7 +301,7 @@ void loop() {
 		// make sure in zero speed before starting
 		faderIn = analogRead(FADER_ANAL);
 		vel = map(faderIn, 0, 1023, 0, xfaderFixSpdIn);
-		comment("xfader vel: " + String(vel));
+		//comment("xfader vel: " + String(vel));
 
 		// pick direction of travel based upon master speed override.
 		if (vel < xfaderFixSpdIn / 2)
@@ -395,108 +405,129 @@ void updatMotorSpd(int _motorSetPoint)
 
 }
 
+// update the screen
+boolean updateScreen()
+{
+	if (millis() - lastScreenUpdateTime > SCREEN_UPDATE_PERIOD)
+	{
+		lastScreenUpdateTime = millis();
+		return true;
+	}
 
-//// initial screen
-//void LCDSetup(){
-//	// Initialise a 20x4 LCD
-//	lcd.begin(20, 4);
-//	delay(10000);
-//	//comment("LCD Setup entered");
-//	
-//	// Turn on the backlight
-//	lcd.backlight();
-//
-//	//set up screen and print.
-//	lcd.setCursor(5);
-//	lcd.print("SILOSTUDIO");
-//	lcd.setCursor(42);
-//	lcd.print("Attua Aparicio &");
-//	lcd.setCursor(64);
-//	lcd.print("Oscar Wanless");
-//}
-//
-//// initial screen
-//void lcdSetupMode(int currentState, int selectedState, int MotorRpm, int ZigzagTime, int RemainingZigs){
-//	// Clear the last screen down
-//	lcd.clear();
-//	lcd.home();
-//
-//	//write the required info to the screen
-//	switch (currentState) {
-//	case SETUP:
-//		lcd.setCursor(2);
-//		lcd.print("Mode: ");
-//		// print selected mode
-//		if (selectedState == TRAPEZOIDAL)
-//			lcd.print("No zig-zag");
-//		else if (selectedState == ZZ_1)
-//			lcd.print("3 zig-zags");
-//		else if (selectedState == ZZ_2)
-//			lcd.print("6 zig-zags");
-//		else if (selectedState == ZZ_3)
-//			lcd.print("9 zig-zags");
-//		else if (selectedState == ZZ_INF)
-//			lcd.print("Endless zig-zags");
-//
-//		//set up screen and print.
-//		lcdWriteSpeed(3, MotorRpm);
-//		lcdWriteTime(4, ZigzagTime);
-//		break;
-//
-//	case TRAPEZOIDAL:
-//		lcdPrintMachineRunning();
-//		lcd.setCursor(25);
-//		lcd.print("No zig-zag");
-//		lcdWriteSpeed(4, MotorRpm);
-//		break;
-//
-//	case ZZ_1: //allow multiple fall through to get same result for these three.
-//	case ZZ_2:
-//	case ZZ_3:
-//		//Generic zig zag print
-//		lcdPrintMachineRunning();
-//		lcd.setCursor(24);
-//		lcd.print("ZZs left: " + String(RemainingZigs));
-//		lcdWriteSpeed(3, MotorRpm);
-//		lcdWriteTime(4, ZigzagTime);
-//		break;
-//
-//	case ZZ_INF:
-//		//Infinite zig zag print
-//		lcdPrintMachineRunning();
-//		lcd.setCursor(22);
-//		lcd.print("Endless zig-zags");
-//		lcdWriteSpeed(3, MotorRpm);
-//		lcdWriteTime(4, ZigzagTime);
-//		break;
-//
-//	default:
-//		lcd.setCursor(20);
-//		lcd.print("ERROR: UNKNOWN MODE!");
-//	}
-//}
-//
-//void lcdWriteSpeed(int line, int MotorRpm){
-//	lcd.setCursor(getCursorNumber(line) + 2);
-//	lcd.print("SPEED: " + String(MotorRpm) + "rpm");
-//}
-//
-//void lcdWriteTime(int line, int ZigzagTime){
-//	lcd.setCursor(getCursorNumber(line));
-//	lcd.print("ZIGZAG TIME: " + String(ZigzagTime) + "ms");
-//}
-//
-//// get the start cursor number based upon the line number
-//int getCursorNumber(int line){
-//
-//	if (line < 5)
-//		return (line - 1) * 20;
-//	else
-//		return 0;
-//}
-//
-//// Print "MACHINE RUNNING"
-//void lcdPrintMachineRunning(){
-//	lcd.setCursor(2);
-//	lcd.print("MACHINE RUNNING");
-//}
+	return false;
+}
+
+
+// initial screen
+void LCDSetup(){
+	// Initialise a 20x4 LCD
+	lcd.begin(20, 4);
+	delay(10000);
+	//comment("LCD Setup entered");
+
+	// Turn on the backlight
+	lcd.backlight();
+
+	//set up screen and print.
+	lcd.setCursor(5);
+	lcd.print("SILOSTUDIO");
+	lcd.setCursor(42);
+	lcd.print("Attua Aparicio &");
+	lcd.setCursor(64);
+	lcd.print("Oscar Wanless");
+}
+
+// initial screen
+void lcdSetupMode(int currentState, int selectedState, int MotorRpm, int ZigzagTime, int RemainingZigs){
+	// Clear the last screen down
+	lcd.clear();
+	lcd.home();
+
+	//write the required info to the screen
+	switch (currentState) {
+	case SETUP:
+		lcd.setCursor(2);
+		lcd.print("Mode: ");
+		// print selected mode
+		if (selectedState == TRAPEZOIDAL)
+			lcd.print("No zig-zag");
+		else if (selectedState == ZZ_1)
+			lcd.print("3 zig-zags");
+		else if (selectedState == ZZ_2)
+			lcd.print("6 zig-zags");
+		else if (selectedState == ZZ_3)
+			lcd.print("9 zig-zags");
+		else if (selectedState == ZZ_INF)
+			lcd.print("Endless zig-zags");
+
+		//set up screen and print.
+		lcdWriteSpeed(3, MotorRpm);
+		lcdWriteTime(4, ZigzagTime);
+		break;
+
+	case TRAPEZOIDAL:
+		lcdPrintMachineRunning();
+		lcd.setCursor(25);
+		lcd.print("No zig-zag");
+		lcdWriteSpeed(4, MotorRpm);
+		break;
+
+	case ZZ_1: //allow multiple fall through to get same result for these three.
+	case ZZ_2:
+	case ZZ_3:
+		//Generic zig zag print
+		lcdPrintMachineRunning();
+		lcd.setCursor(24);
+		lcd.print("ZZs left: " + String(RemainingZigs));
+		lcdWriteSpeed(3, MotorRpm);
+		lcdWriteTime(4, ZigzagTime);
+		break;
+
+	case ZZ_INF:
+		//Infinite zig zag print
+		lcdPrintMachineRunning();
+		lcd.setCursor(22);
+		lcd.print("Endless zig-zags");
+		lcdWriteSpeed(3, MotorRpm);
+		lcdWriteTime(4, ZigzagTime);
+		break;
+
+	case X_FADER:
+		//Infinite zig zag print
+		lcdPrintMachineRunning();
+		lcd.setCursor(26);
+		lcd.print("X-FADER");
+		lcdWriteSpeed(4, MotorRpm);
+
+		break;
+
+	default:
+		lcd.setCursor(20);
+		lcd.print("ERROR: UNKNOWN MODE!");
+	}
+}
+
+void lcdWriteSpeed(int line, int MotorRpm){
+	lcd.setCursor(getCursorNumber(line) + 2);
+	lcd.print("SPEED: " + String(MotorRpm) + "rpm");
+}
+
+void lcdWriteTime(int line, int ZigzagTime){
+	lcd.setCursor(getCursorNumber(line));
+	lcd.print("ZIGZAG TIME: " + String(ZigzagTime) + "ms");
+}
+
+// get the start cursor number based upon the line number
+int getCursorNumber(int line){
+
+	if (line < 5)
+		return (line - 1) * 20;
+	else
+		return 0;
+}
+
+// Print "MACHINE RUNNING"
+void lcdPrintMachineRunning(){
+	lcd.setCursor(2);
+	lcd.print("MACHINE RUNNING");
+}
