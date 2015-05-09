@@ -24,62 +24,58 @@
 #include <Wire.h>
 #include <LCD03.h>
 
-// ------RIGHT SIDE------
-// RP01 : Not Conected.
-int I0_9 = A0;    // select the Analog (0-10Vdc) / Digital (24Vdc)IN  **warning"" (if Analog slection connect 10Vdc MAX).
-int I0_8 = A1;    // select the Analog (0-10Vdc) / Digital (24Vdc)IN  **warning"" (if Analog slection connect 10Vdc MAX).
-int I0_7 = A2;    // select the Analog (0-10Vdc) / Digital (24Vdc)IN  **warning"" (if Analog slection connect 10Vdc MAX).
-int I0_6 = A3;    // select the Analog (0-10Vdc) / Digital (24Vdc)IN  **warning"" (if Analog slection connect 10Vdc MAX).
-int I0_5 = A4;    // select the Analog (0-10Vdc) / Digital (24Vdc)IN  **warning"" (if Analog slection connect 10Vdc MAX).
-int I0_4 = A5;    // select the Analog (0-10Vdc) / Digital (24Vdc)IN  **warning"" (if Analog slection connect 10Vdc MAX).
-int I0_3 = 4;     // select the Analog (0-10Vdc) / Digital (24Vdc)IN  **warning"" (if Analog slection connect 10Vdc MAX).
-int I0_2 = 8;     // select the Analog (0-10Vdc) / Digital (24Vdc)IN  **warning"" (if Analog slection connect 10Vdc MAX).
-int I0_1 = 12;    // select the Analog (0-10Vdc) / Digital (24Vdc)IN  **warning"" (if Analog slection connect 10Vdc MAX).
-int I0_0 = 2;     // Digital INPUT (24Vdc)
-int Q0_9 = 0;     // Digital OUTPUT (24Vdc)
-int Q0_8 = 1;     // Digital OUTPUT (24Vdc)
-int Q0_7 = 7;     // Digital OUTPUT (24Vdc)
-// ------LEFT SIDE------
-//Configuration Digital IN (24Vdc)
-int Q0_6 = 3;     // select the Analog (0-10Vdc) / PWM (10 OR 24Vdc) /Digital (24Vdc)OUTPUT  
-int Q0_5 = 5;     // select the Analog (0-10Vdc) / PWM (10 OR 24Vdc) /Digital (24Vdc)OUTPUT  
-int Q0_4 = 6;     // select the Analog (0-10Vdc) / PWM (10 OR 24Vdc) /Digital (24Vdc)OUTPUT  
-int Q0_3 = 9;     // select the Analog (0-10Vdc) / PWM (10 OR 24Vdc) /Digital (24Vdc)OUTPUT  
-int Q0_2 = 10;    // select the Analog (0-10Vdc) / PWM (10 OR 24Vdc) /Digital (24Vdc)OUTPUT  
-int Q0_1 = 11;    // select the Analog (0-10Vdc) / PWM (10 OR 24Vdc) /Digital (24Vdc)OUTPUT  
-int Q0_0 = 13;    // select the Analog (0-10Vdc) / PWM (10 OR 24Vdc) /Digital (24Vdc)OUTPUT  
+//MEGA PINS
+int I0_09 = A2;	// select the Analog (0-10Vdc)
+int I0_10 = A3;	// select the Analog (0-10Vdc)
+int I0_11 = A4;	// select the Analog (0-10Vdc)
+int I0_12 = A5;	// select the Analog (0-10Vdc)
+
+int I0_03 = 25; // select 24VDC
+int I0_02 = 24;	// select 24VDC
+int I0_01 = 23;	// select 24VDC
+int I0_00 = 22;	// select 24VDC
+
+
+//Configuration Digital OUT (24Vdc)
+int Q0_07 = 6;     // select the Analog (0-10Vdc) 
+int Q0_05 = 4;     // select the Analog (0-10Vdc) 
+int Q0_00 = 36;     // select the Analog (0-10Vdc) 
+int Q0_01 = 37;     // select the Analog (0-10Vdc) 
 
 // set digital input pin numbers:
-const int DRV_FAULT = I0_4;	// I0.4 drv fault relay feedback
-const int START_BTN = I0_3;	// I0.3 the number of the start button.
-const int STOP_BTN = I0_2;	// I0.2  the number of the stop button.
-const int MODE_BTN = I0_1;	// I0.1 the number of the mode button.
+const int DRV_FAULT = I0_03;// I0.3 drv fault relay feedback
+const int START_BTN = I0_02;// I0.2 the number of the start button.
+const int STOP_BTN = I0_01;	// I0.1  the number of the stop button.
+const int MODE_BTN = I0_00;	// I0.0 the number of the mode button.
 
 // define xFader deadband range 
 #define xFADER_DEAD_START 450
 #define xFADER_DEAD_END 550
 
 //set analogue input pins.
-const int FADER_ANAL = I0_7;	// I0.7	the crossfader input pin.
-const int VELO_ANAL = I0_8;   // I0.8 the velocity input pin.
-const int TIME_ANAL = I0_9;   // I0.9 the velocity input pin.
+const int FADER_ANAL = I0_12;	// I0.7	the crossfader input pin.
+const int VELO_ANAL = I0_09;   // I0.8 the velocity input pin.
+const int TIME_ANAL = I0_10;   // I0.9 the velocity input pin.
 
 // set motor output pin number.
-const int ANAL_10V_REF = Q0_1;	// Q0.1 just set to max to provide 10V refernce voltage.
-const int MOTOR_OUTPUT = Q0_0;	// Q0.0 PWM pin for output to motor
+const int ANAL_10V_REF = Q0_05;	// Q0.1 just set to max to provide 10V refernce voltage.
+const int MOTOR_OUTPUT = Q0_07;	// Q0.0 PWM pin for output to motor
 
+//TODO - add these to OneNote and to 
 // set drive start and direction pins.
-const int MOTOR_RUN = Q0_4;		// Q0.4  motor runnnig
-const int MOTOR_DIRECTION = Q0_5;	// Q0.5 motor direction.
+const int MOTOR_RUN = Q0_00;		// Q0.4  motor runnnig
+const int MOTOR_DIRECTION = Q0_01;	// Q0.5 motor direction.
 
 // define state numbers
 #define SETUP 0
 #define TRAPEZOIDAL 100
-#define ZZ_1 200
-#define ZZ_2 300
-#define ZZ_3 400
-#define ZZ_INF 500
-#define X_FADER 600
+#define ZZ_INF 200
+#define ZZ_PULSE 300
+#define X_FADER 400
+#define ZZ_1 500
+#define ZZ_2 600
+#define ZZ_3 700
+
 // define the number of zigzags
 #define ZZ_1_NUM 3 // number of zigzagz, ZZ_1
 #define ZZ_2_NUM 6 // number of zigzagz, ZZ_2
@@ -152,7 +148,7 @@ void setup() {
 
 	//pinMode(FADER_ANAL, INPUT);
 	//start the serial for the comment function to work.
-	Serial.begin(115200);
+	Serial.begin(9600);
 
 	//initialise LCD Screen
 	LCDSetup();
@@ -175,7 +171,7 @@ void loop() {
 
 	// read the velocity input and map to percentage 0 - 139.5% (139.5% is max motor)
 	veloAnalIn = analogRead(VELO_ANAL);
-	//comment("Velo anal in is: " + String(veloAnalIn));
+	comment("Velo anal in is: " + String(veloAnalIn));
 	/*
 		scale spdIn from 0 to 139.5%.  127.5 is about half of 255 (so 5V output).
 		5V to the drive is 100% speed (2860rpm). 3989rpm (139.5%) is max speed
@@ -189,11 +185,10 @@ void loop() {
 
 	// update the screen
 	if (updateScreen())
-	{
-		// pass the correct speed based upon the 
+	{	// pass the correct speed based upon the 
 		if (state != X_FADER)
 			lcdSetupMode(state, modeState, spdIn, timeIn, zigzagCtr);
-		else
+		else 
 			lcdSetupMode(state, 0, vel, 0, 0);
 	}
 
@@ -202,6 +197,7 @@ void loop() {
 		state = SETUP;
 
 	switch (state) {
+
 	case SETUP:
 		// make sure the output is always set low, and not running.
 		analogWrite(MOTOR_OUTPUT, 0);
@@ -242,7 +238,7 @@ void loop() {
 
 			// hold in setup if not in deadband.
 			if (!(v > xFADER_DEAD_START && v < xFADER_DEAD_END))
-				state = SETUP;
+				state = SETUP; 
 		}
 
 		break;
@@ -254,6 +250,26 @@ void loop() {
 
 		updatMotorSpd(spdIn);
 		//comment("bowl velocity is " + String(spdIn));
+		break;
+
+	case ZZ_INF:
+		// continuous zigzags
+		zigzagMethod(ZZ_INF_NUM);
+
+		if (startTrig.Falling)
+			state = TRAPEZOIDAL;
+
+		updatMotorSpd(spdIn);
+		break;
+
+	case ZZ_PULSE:
+		// continuous zigzags
+		zzPulseMethod();
+
+		if (startTrig.Falling)
+			state = TRAPEZOIDAL;
+
+		updatMotorSpd(spdIn);
 		break;
 
 	case ZZ_1:
@@ -285,17 +301,7 @@ void loop() {
 
 		updatMotorSpd(spdIn);
 		break;
-
-	case ZZ_INF:
-		// continuous zigzags
-		zigzagMethod(ZZ_INF_NUM);
-
-		if (startTrig.Falling)
-			state = TRAPEZOIDAL;
-
-		updatMotorSpd(spdIn);
-		break;
-
+		
 	case X_FADER:
 		// use a cross fader to change between modes
 		// make sure in zero speed before starting
@@ -327,6 +333,39 @@ void loop() {
 void comment(String comment)
 {
 	Serial.println(comment);
+}
+
+// does the zigzag pulses.
+void zzPulseMethod(){
+	unsigned long currTime = millis();	// get current time
+	long zzt;							// temp var for holding correct time
+
+	// if elapsed time hasn't been used this run, get it.
+	if (startTime == 0)
+		startTime = currTime;
+
+	// if zigzagCtr is zero, run.
+	if (zigzagCtr == 0)
+		digitalWrite(MOTOR_DIRECTION, motorDir);
+	else if (zigzagCtr == 1) // if it's one, stop.
+	{
+		analogWrite(MOTOR_OUTPUT, 0);
+		digitalWrite(MOTOR_RUN, LOW);
+	}
+	else
+		state = SETUP; // shouoldn't be able to get here.  Reset
+
+	//after the section has elapsed, do next section.
+	if (currTime - startTime > zzt)
+	{
+		//when completed, increment zigzagCtr.
+		zigzagCtr++;
+		startTime = 0;
+	}
+
+	// if zizagCtr is > 1, reset.
+	if (zigzagCtr > 1)
+		zigzagCtr = 0;
 }
 
 void zigzagMethod(int numberOfZigs)
@@ -423,7 +462,7 @@ void LCDSetup(){
 	// Initialise a 20x4 LCD
 	lcd.begin(20, 4);
 	delay(10000);
-	//comment("LCD Setup entered");
+	comment("LCD Setup entered");
 
 	// Turn on the backlight
 	lcd.backlight();
@@ -450,15 +489,20 @@ void lcdSetupMode(int currentState, int selectedState, int MotorRpm, int ZigzagT
 		lcd.print("Mode: ");
 		// print selected mode
 		if (selectedState == TRAPEZOIDAL)
-			lcd.print("No zig-zag");
+			lcd.print("No zig-zag");		
+		else if (selectedState == ZZ_INF)
+			lcd.print("Endless zig-zags");
+		else if (selectedState == ZZ_PULSE)
+			lcd.print("     Pulsing");
+		else if (selectedState == X_FADER)
+			lcd.print("3 zig-zags");
 		else if (selectedState == ZZ_1)
 			lcd.print("3 zig-zags");
 		else if (selectedState == ZZ_2)
 			lcd.print("6 zig-zags");
 		else if (selectedState == ZZ_3)
 			lcd.print("9 zig-zags");
-		else if (selectedState == ZZ_INF)
-			lcd.print("Endless zig-zags");
+
 
 		//set up screen and print.
 		lcdWriteSpeed(3, MotorRpm);
@@ -488,6 +532,15 @@ void lcdSetupMode(int currentState, int selectedState, int MotorRpm, int ZigzagT
 		lcdPrintMachineRunning();
 		lcd.setCursor(22);
 		lcd.print("Endless zig-zags");
+		lcdWriteSpeed(3, MotorRpm);
+		lcdWriteTime(4, ZigzagTime);
+		break;
+
+	case ZZ_PULSE:
+		//Infinite zig zag print
+		lcdPrintMachineRunning();
+		lcd.setCursor(22);
+		lcd.print("      Pulsing");
 		lcdWriteSpeed(3, MotorRpm);
 		lcdWriteTime(4, ZigzagTime);
 		break;
