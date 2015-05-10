@@ -58,8 +58,8 @@ const int VELO_ANAL = I0_09;   // I0.8 the velocity input pin.
 const int TIME_ANAL = I0_10;   // I0.9 the velocity input pin.
 
 // set motor output pin number.
-const int ANAL_10V_REF = Q0_05;	// Q0.1 just set to max to provide 10V refernce voltage.
-const int MOTOR_OUTPUT = Q0_07;	// Q0.0 PWM pin for output to motor
+const int ANAL_10V_REF = Q0_07;	// Q0.1 just set to max to provide 10V refernce voltage.
+const int MOTOR_OUTPUT = Q0_05;	// Q0.0 PWM pin for output to motor
 
 //TODO - add these to OneNote and to 
 // set drive start and direction pins.
@@ -88,19 +88,21 @@ const int MOTOR_DIRECTION = Q0_01;	// Q0.5 motor direction.
 // define the debounce time.
 #define DEBOUNCE 25
 
-#define SCREEN_UPDATE_PERIOD 200 // time in ms between updating screen. avoid too much work!
+#define SCREEN_UPDATE_PERIOD 333 // time in ms between updating screen. avoid too much work!
+#define SMOOTHING_ARRAY_SIZE 100 // size of array to smooth over.
 
 // Instantiate a Bounce object
 Bounce startBtn = Bounce();
 Bounce stopBtn = Bounce();
 Bounce modeBtn = Bounce();
+Bounce drvFlt = Bounce();
 
 // read once, use throughout
 boolean stopBtnState = false;
 boolean drvFaultState = false;
 
 // Variables will change:
-int modeState = SETUP;        // the current state of the output
+int modeState = TRAPEZOIDAL;        // the current state of the output
 int state = SETUP;        // the current reading from the input pin
 
 Trigger startTrig = Trigger();
@@ -112,11 +114,14 @@ unsigned long startTime;
 int zigzagCtr;
 int xfaderFixSpdIn;	// use this for the zigzag testing.
 int spdIn;			// grab the speed pot.
+int arSpdIn[SMOOTHING_ARRAY_SIZE];		// array for smoothing.
 int timeIn;			// grab the time pot.
+int artimeIn[SMOOTHING_ARRAY_SIZE];		// array for smoothing.
 int veloAnalIn;		// grab unscaled pot.
 int vel;			// used in X_FADER.
 int faderIn;		// grab the xFader.
-int lastScreenUpdateTime; // hold the current screen time to regulate updates.
+int arFaderIn[SMOOTHING_ARRAY_SIZE];		// array for smoothing.
+unsigned long lastScreenUpdateTime; // hold the current screen time to regulate updates.
 boolean motorDir;   // motor direction.
 boolean firstTrap;  // use this flag to indicate whether the trap is called or not.
 
@@ -146,9 +151,12 @@ void setup() {
 	stopBtn.attach(STOP_BTN);
 	stopBtn.interval(DEBOUNCE);       // interval in ms
 
+	pinMode(DRV_FAULT, INPUT);
+	drvFlt.attach(DRV_FAULT);
+	drvFlt.interval(DEBOUNCE);       // interval in ms
 	//pinMode(FADER_ANAL, INPUT);
 	//start the serial for the comment function to work.
-	Serial.begin(9600);
+	Serial.begin(115200);
 
 	//initialise LCD Screen
 	LCDSetup();
@@ -159,11 +167,13 @@ void loop() {
 	startBtn.update();
 	stopBtn.update();
 	modeBtn.update();
+	drvFlt.update();
 
 	stopBtnState = stopBtn.read();
 
 	// get the drive fault state (TRUE = NO FAULT)
-	drvFaultState = (analogRead(DRV_FAULT) > 240);
+	drvFaultState = drvFlt.read();
+	comment("SrtB: " + String(startBtn.read()) + " MD: " + String(modeBtn.read()) + " DF:" + String(drvFaultState) + " StpB: " + String(stopBtnState));
 
 	// get the bool states for the triggers.
 	startTrig.update(startBtn.read());
@@ -171,24 +181,28 @@ void loop() {
 
 	// read the velocity input and map to percentage 0 - 139.5% (139.5% is max motor)
 	veloAnalIn = analogRead(VELO_ANAL);
-	comment("Velo anal in is: " + String(veloAnalIn));
+	//comment("Velo anal in is: " + String(veloAnalIn));
+	//comment("last screen time: " + String(lastScreenUpdateTime));
 	/*
 		scale spdIn from 0 to 139.5%.  127.5 is about half of 255 (so 5V output).
 		5V to the drive is 100% speed (2860rpm). 3989rpm (139.5%) is max speed
 		So 127.5 * 1.395 = 177.8 = max drive speed
 		*/
-	spdIn = map(veloAnalIn, 0, 1023, 0, 178);
+	//smooth the input
+	spdIn = map(returnInputAverage(arSpdIn, veloAnalIn, SMOOTHING_ARRAY_SIZE), 0, 1023, 0, 178);
 	//comment("speedIn is " + String(spdIn));
 
 	// read the time and map to 500ms to 3000ms
-	timeIn = map(analogRead(TIME_ANAL), 0, 1023, 250, 1500);		// read the time input
+	//smooth the input
+	timeIn = map(returnInputAverage(artimeIn, analogRead(TIME_ANAL), SMOOTHING_ARRAY_SIZE), 0, 1023, 250, 1500);		// read the time input
 
 	// update the screen
 	if (updateScreen())
-	{	// pass the correct speed based upon the 
+	{	// pass the correct speed based upon the
+		comment("Selected State " + String(modeState));
 		if (state != X_FADER)
 			lcdSetupMode(state, modeState, spdIn, timeIn, zigzagCtr);
-		else 
+		else
 			lcdSetupMode(state, 0, vel, 0, 0);
 	}
 
@@ -215,7 +229,7 @@ void loop() {
 		if (modeTrig.Falling)
 		{
 			// change the modestate
-			if (modeState < ZZ_INF)
+			if (modeState < ZZ_3)
 				modeState += 100;
 			else
 				modeState = 100;
@@ -238,7 +252,7 @@ void loop() {
 
 			// hold in setup if not in deadband.
 			if (!(v > xFADER_DEAD_START && v < xFADER_DEAD_END))
-				state = SETUP; 
+				state = SETUP;
 		}
 
 		break;
@@ -301,7 +315,7 @@ void loop() {
 
 		updatMotorSpd(spdIn);
 		break;
-		
+
 	case X_FADER:
 		// use a cross fader to change between modes
 		// make sure in zero speed before starting
@@ -456,12 +470,11 @@ boolean updateScreen()
 	return false;
 }
 
-
 // initial screen
 void LCDSetup(){
 	// Initialise a 20x4 LCD
 	lcd.begin(20, 4);
-	delay(10000);
+	delay(1000);
 	comment("LCD Setup entered");
 
 	// Turn on the backlight
@@ -474,6 +487,7 @@ void LCDSetup(){
 	lcd.print("Attua Aparicio &");
 	lcd.setCursor(64);
 	lcd.print("Oscar Wanless");
+	delay(5000);
 }
 
 // initial screen
@@ -489,20 +503,19 @@ void lcdSetupMode(int currentState, int selectedState, int MotorRpm, int ZigzagT
 		lcd.print("Mode: ");
 		// print selected mode
 		if (selectedState == TRAPEZOIDAL)
-			lcd.print("No zig-zag");		
+			lcd.print("No zig-zag");
 		else if (selectedState == ZZ_INF)
-			lcd.print("Endless zig-zags");
+			lcd.print("Zig-zags");
 		else if (selectedState == ZZ_PULSE)
-			lcd.print("     Pulsing");
+			lcd.print("Pulsing");
 		else if (selectedState == X_FADER)
-			lcd.print("3 zig-zags");
+			lcd.print("-fader");
 		else if (selectedState == ZZ_1)
 			lcd.print("3 zig-zags");
 		else if (selectedState == ZZ_2)
 			lcd.print("6 zig-zags");
 		else if (selectedState == ZZ_3)
 			lcd.print("9 zig-zags");
-
 
 		//set up screen and print.
 		lcdWriteSpeed(3, MotorRpm);
@@ -583,4 +596,27 @@ int getCursorNumber(int line){
 void lcdPrintMachineRunning(){
 	lcd.setCursor(2);
 	lcd.print("MACHINE RUNNING");
+}
+
+
+int returnInputAverage(int inputArray[], int currentValue, int numreadings)
+{
+	long total = 0;
+	//shuffle all the values down a place and put the new value in.  collect the total..
+	for (int i = 0; i < numreadings - 1; i++)
+	{
+		inputArray[i] = inputArray[i + 1];
+		total += inputArray[i];
+	}
+	//add the currentvalue to the array.
+	inputArray[numreadings - 1] = currentValue;
+	//add the current value.
+	//comment(String(total));
+	total += currentValue;
+	//return the avearge.  Crude smoothing of the input signal.
+	if (total < numreadings)
+		return 0;
+	else
+		return (total / numreadings);
+
 }
