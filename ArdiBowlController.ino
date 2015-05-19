@@ -189,12 +189,12 @@ void loop() {
 		So 127.5 * 1.395 = 177.8 = max drive speed
 		*/
 	//smooth the input
-	spdIn = map(returnInputAverage(arSpdIn, veloAnalIn, SMOOTHING_ARRAY_SIZE), 0, 1023, 0, 178);
+	spdIn = map(returnInputAverage(arSpdIn, veloAnalIn, SMOOTHING_ARRAY_SIZE), 0, 1023, 178, 0);
 	//comment("speedIn is " + String(spdIn));
 
 	// read the time and map to 500ms to 3000ms
 	//smooth the input
-	timeIn = map(returnInputAverage(artimeIn, analogRead(TIME_ANAL), SMOOTHING_ARRAY_SIZE), 0, 1023, 250, 1500);		// read the time input
+	timeIn = map(returnInputAverage(artimeIn, analogRead(TIME_ANAL), SMOOTHING_ARRAY_SIZE), 0, 1023, 1500, 50);		// read the time input
 
 	// update the screen
 	if (updateScreen())
@@ -354,13 +354,21 @@ void zzPulseMethod(){
 	unsigned long currTime = millis();	// get current time
 	long zzt;							// temp var for holding correct time
 
+	if (zigzagCtr == 1)
+		zzt = 50; //changed to 50 from 200.
+	else
+		zzt = timeIn;
+
 	// if elapsed time hasn't been used this run, get it.
 	if (startTime == 0)
 		startTime = currTime;
 
 	// if zigzagCtr is zero, run.
 	if (zigzagCtr == 0)
-		digitalWrite(MOTOR_DIRECTION, motorDir);
+	{
+		startMotor(spdIn, false);
+	}
+
 	else if (zigzagCtr == 1) // if it's one, stop.
 	{
 		analogWrite(MOTOR_OUTPUT, 0);
@@ -503,13 +511,13 @@ void lcdSetupMode(int currentState, int selectedState, int MotorRpm, int ZigzagT
 		lcd.print("Mode: ");
 		// print selected mode
 		if (selectedState == TRAPEZOIDAL)
-			lcd.print("No zig-zag");
+			lcd.print(" Constant");
 		else if (selectedState == ZZ_INF)
 			lcd.print("Zig-zags");
 		else if (selectedState == ZZ_PULSE)
 			lcd.print("Pulsing");
 		else if (selectedState == X_FADER)
-			lcd.print("-fader");
+			lcd.print("X-fader");
 		else if (selectedState == ZZ_1)
 			lcd.print("3 zig-zags");
 		else if (selectedState == ZZ_2)
@@ -525,7 +533,7 @@ void lcdSetupMode(int currentState, int selectedState, int MotorRpm, int ZigzagT
 	case TRAPEZOIDAL:
 		lcdPrintMachineRunning();
 		lcd.setCursor(25);
-		lcd.print("No zig-zag");
+		lcd.print(" Constant");
 		lcdWriteSpeed(4, MotorRpm);
 		break;
 
@@ -575,7 +583,7 @@ void lcdSetupMode(int currentState, int selectedState, int MotorRpm, int ZigzagT
 
 void lcdWriteSpeed(int line, int MotorRpm){
 	lcd.setCursor(getCursorNumber(line) + 2);
-	lcd.print("SPEED: " + String(MotorRpm) + "rpm");
+	lcd.print("SPEED: " + String((int)(MotorRpm*0.66875 + 20)) + "rpm");
 }
 
 void lcdWriteTime(int line, int ZigzagTime){
